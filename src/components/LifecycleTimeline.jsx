@@ -16,7 +16,7 @@ function formatTime(hours, minutes) {
 function generateSegments(seed) {
   const rng = seededRng(seed)
   const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']
-  const triggers = ['VIA API', 'VIA DASHBOARD', 'VIA API', 'VIA CLI']
+  const triggers = ['via API', 'via user']
   const rawCount = types.length
   const startMin = 14 * 60 + 10 // 14:10
   const endMin = 20 * 60        // 20:00
@@ -350,7 +350,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
             if (colFromRight >= visibleCols || skip) continue
             const px0 = killStartX + col * dotSize
             const py0 = row * dotSize
-            const color = isOrange ? [229, 111, 0] : [255, 68, 0]
+            const color = isOrange ? [255, 68, 0] : [204, 34, 0]
             for (let py = py0; py < py0 + dotSize && py < h; py++) {
               for (let px = px0; px < px0 + dotSize && px < w; px++) {
                 const i = (py * w + px) * 4
@@ -412,7 +412,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
               <span className="text-xs text-[#707070] uppercase">Paused</span>
             </div>
             <div className="h-[18px] flex items-center gap-1.5 pr-1">
-              <div className="w-3.5 h-3.5 bg-[#E56F00]" />
+              <div className="w-3.5 h-3.5 bg-[#FF4400]" />
               <span className="text-xs text-[#707070] uppercase">Killed</span>
             </div>
           </div>
@@ -520,6 +520,32 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
               )
             })
           })()}
+          {/* Gap tooltip (dynamic pause gaps) */}
+          {hoveredGap !== null && hoveredSegment === null && (() => {
+            const containerWidth = containerRef.current?.getBoundingClientRect().width || 1000
+            const tooltipWidth = 200
+            let leftPx = hoveredGap.x - tooltipWidth / 2
+            leftPx = Math.max(0, Math.min(leftPx, containerWidth - tooltipWidth))
+            return (
+              <div
+                className="absolute z-30 bg-white border border-[#D6D6D6] pointer-events-none"
+                style={{
+                  width: tooltipWidth,
+                  top: -60,
+                  left: leftPx,
+                  filter: 'drop-shadow(0px 2px 3px #00000026)',
+                }}
+              >
+                <div className="flex items-center gap-2.5 px-6 py-3">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" className="shrink-0">
+                    <rect x="6" y="4" width="4" height="16" />
+                    <rect x="14" y="4" width="4" height="16" />
+                  </svg>
+                  <span className="text-sm font-bold text-[#0A0A0A] uppercase">Paused</span>
+                </div>
+              </div>
+            )
+          })()}
           {/* Tooltip */}
           {hoveredSegment !== null && (() => {
             const seg = segments[hoveredSegment]
@@ -535,7 +561,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
                 className="absolute z-30 bg-white border border-[#D6D6D6] pointer-events-none transition-all duration-200"
                 style={{
                   width: tooltipWidth,
-                  top: -210 - 8,
+                  top: -210 - 16,
                   left: leftPx,
                   filter: 'drop-shadow(0px 2px 3px #00000026)',
                 }}
@@ -558,7 +584,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
                         <span className="uppercase">{seg.type === 'PAUSED' ? 'Paused' : seg.type === 'RESUMED' ? 'Resumed' : 'Running'}</span>
                         {` (${seg.duration})`}
                       </span>
-                      {seg.trigger && <span className="text-[#707070]"> {seg.trigger.replace('VIA', 'via')}</span>}
+                      {seg.trigger && <span className="text-[#707070]"> {seg.trigger}</span>}
                     </span>
                     <span className="font-mono text-sm text-[#707070] leading-5">
                       {seg.fromLabel} – {seg.toLabel}
@@ -579,10 +605,12 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
                   ))}
                 </div>
                 {/* Footer */}
-                <div className="flex items-center gap-2 px-6 py-3 bg-[#FAFAFA]">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#707070" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
+                <div className="flex items-center gap-2 px-6 pt-0 pb-3 bg-[#FAFAFA] -mt-1">
+                  <div className="opacity-60 relative shrink-0 w-3.5 h-3.5">
+                    <svg viewBox="0 0 8.83 10" width="8.83" height="10" style={{ overflow: 'visible', rotate: '-33.67deg', position: 'absolute', left: '2px', top: '8px', transformOrigin: '0% 0%' }}>
+                      <path d="M0 10C0 10 4.307 0 4.307 0C4.307 0 8.832 10 8.832 10C8.832 10 4.307 7.044 4.307 7.044C4.307 7.044 0 10 0 10Z" fill="none" stroke="#707070" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" />
+                    </svg>
+                  </div>
                   <span className="font-mono text-xs text-[#707070] leading-5">click to highlight in logs</span>
                 </div>
               </div>
@@ -613,11 +641,11 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
           <div className="flex items-center gap-1.5">
             {killed ? (
               <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E56F00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FF4400" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M15 9l-6 6M9 9l6 6" />
                 </svg>
-                <span className="text-xs font-bold text-[#E56F00]">{nowLabel}</span>
+                <span className="text-xs font-bold text-[#FF4400]">{nowLabel}</span>
               </>
             ) : (
               <>

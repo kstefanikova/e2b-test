@@ -9,9 +9,9 @@ function SidebarIcon({ children, active }) {
 function EnterIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M12.75 5.75L17 10L12.75 14.25" stroke="#707070" strokeWidth="2" strokeLinecap="square" />
-      <line x1="21" y1="5" x2="21" y2="19" stroke="#707070" strokeWidth="2" strokeLinecap="square" />
-      <line x1="3" y1="12" x2="16" y2="12" stroke="#707070" strokeWidth="2" strokeLinecap="square" />
+      <path d="M12.75 5.75L17 10L12.75 14.25" stroke="#707070" strokeWidth="1.667" strokeLinecap="square" />
+      <line x1="17.5" y1="4" x2="17.5" y2="16" stroke="#707070" strokeWidth="1.667" strokeLinecap="square" />
+      <line x1="2.5" y1="10" x2="15" y2="10" stroke="#707070" strokeWidth="1.667" strokeLinecap="square" />
     </svg>
   )
 }

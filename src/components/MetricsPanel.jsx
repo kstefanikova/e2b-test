@@ -5,6 +5,31 @@ function seededRng(seed) {
   return () => { s = (s * 16807 + 7) % 2147483647; return s / 2147483647 }
 }
 
+// Compute pause gap positions as percentage ranges (matching LifecycleTimeline segments)
+function computePauseGaps() {
+  const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']
+  const totalSlots = types.length
+  const gaps = []
+  let i = 0
+  while (i < totalSlots) {
+    if (types[i] === 'PAUSED') {
+      const start = i
+      while (i < totalSlots && types[i] === 'PAUSED') i++
+      gaps.push({ leftPct: (start / totalSlots) * 100, widthPct: ((i - start) / totalSlots) * 100 })
+    } else {
+      i++
+    }
+  }
+  return gaps
+}
+
+const pauseGaps = computePauseGaps()
+
+function isInPauseGap(pct) {
+  const pctVal = pct * 100
+  return pauseGaps.some(gap => pctVal >= gap.leftPct && pctVal < gap.leftPct + gap.widthPct)
+}
+
 // Generate sharp angular chart data — mostly flat baseline with narrow triangular spikes
 function generatePoints(count, seed, baseLevel, volatility, spikiness = 0) {
   const rng = seededRng(seed)
@@ -120,6 +145,9 @@ function MirroredMetricCard({ title, value, seed, paused }) {
       >
         <path d={upperFill} fill="#0000FC33" style={{ transition: 'none' }} />
         <path d={upperLine} fill="none" stroke="#0000FC" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
+        {pauseGaps.map((gap, i) => (
+          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={upperH} fill="white" />
+        ))}
       </svg>
       {/* Lower half — teal, spikes downward */}
       <svg
@@ -130,6 +158,9 @@ function MirroredMetricCard({ title, value, seed, paused }) {
       >
         <path d={lowerFill} fill="#01DFDF33" style={{ transition: 'none' }} />
         <path d={lowerLine} fill="none" stroke="#01B4B4" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
+        {pauseGaps.map((gap, i) => (
+          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={lowerH} fill="white" />
+        ))}
       </svg>
       {/* Hover interaction — upper half (Read) */}
       <div
@@ -154,42 +185,43 @@ function MirroredMetricCard({ title, value, seed, paused }) {
       {/* Hover line + marker + time label */}
       {hoverPct !== null && (() => {
         const { pct, zone } = hoverPct
+        const inGap = isInPauseGap(pct)
         const idx = Math.min(Math.floor(pct * visibleCount), visibleCount - 1)
         if (zone === 'upper') {
-          const val = upperPointsState[idx] || 0
+          const val = inGap ? 0 : (upperPointsState[idx] || 0)
           const markerY = topOffset + upperH * (1 - val)
           return (
             <>
               <div className="absolute top-0 bottom-0 w-px bg-[#D6D6D6] z-10 pointer-events-none" style={{ left: `${pct * 100}%` }} />
-              <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
+              {!inGap && <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
                 left: `calc(${pct * 100}% - 3.5px)`,
                 top: markerY - 3.5,
-              }} />
+              }} />}
               <div className="absolute z-20 pointer-events-none border border-[#D6D6D6] bg-white px-1.5 py-0.5 flex items-center gap-2" style={{
                 left: `calc(${pct * 100}% - 22px)`,
-                top: markerY - 28,
+                top: inGap ? topOffset + upperH - 28 : markerY - 28,
               }}>
                 <span className="font-mono text-xs text-[#0A0A0A]">{formatHoverTime(pct)}</span>
-                <span className="font-mono text-xs text-[#0000FC]">Read {Math.round(val * 100)}%</span>
+                <span className="font-mono text-xs text-[#0000FC]">Read {inGap ? '0' : `${Math.round(val * 100)}%`}</span>
               </div>
             </>
           )
         } else {
-          const val = lowerPointsState[idx] || 0
+          const val = inGap ? 0 : (lowerPointsState[idx] || 0)
           const markerY = topOffset + upperH + lowerH * val
           return (
             <>
               <div className="absolute top-0 bottom-0 w-px bg-[#D6D6D6] z-10 pointer-events-none" style={{ left: `${pct * 100}%` }} />
-              <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
+              {!inGap && <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
                 left: `calc(${pct * 100}% - 3.5px)`,
                 top: markerY - 3.5,
-              }} />
+              }} />}
               <div className="absolute z-20 pointer-events-none border border-[#D6D6D6] bg-white px-1.5 py-0.5 flex items-center gap-2" style={{
                 left: `calc(${pct * 100}% - 22px)`,
-                top: markerY + 10,
+                top: inGap ? topOffset + upperH + 10 : markerY + 10,
               }}>
                 <span className="font-mono text-xs text-[#0A0A0A]">{formatHoverTime(pct)}</span>
-                <span className="font-mono text-xs text-[#01B4B4]">Write {Math.round(val * 100)}%</span>
+                <span className="font-mono text-xs text-[#01B4B4]">Write {inGap ? '0' : `${Math.round(val * 100)}%`}</span>
               </div>
             </>
           )
@@ -286,6 +318,9 @@ function MetricCard({ title, value, unit, seed, baseLevel, volatility, spikiness
             <path d={ep.line} fill="none" stroke={ep.strokeColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
           </g>
         ))}
+        {pauseGaps.map((gap, i) => (
+          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={chartH} fill="white" />
+        ))}
       </svg>
       {/* Hover interaction layer */}
       <div
@@ -298,20 +333,21 @@ function MetricCard({ title, value, unit, seed, baseLevel, volatility, spikiness
       />
       {/* Hover line + marker + time label */}
       {hoverPct !== null && (() => {
+        const inGap = isInPauseGap(hoverPct)
         const idx = Math.min(Math.floor(hoverPct * visibleCount), visibleCount - 1)
-        const pointVal = pointsState[idx] || 0
+        const pointVal = inGap ? 0 : (pointsState[idx] || 0)
         const markerY = 175 - chartH + chartH * (1 - pointVal)
-        const metricVal = unit === 'GB' ? `${(pointVal * 8).toFixed(2)} GB` : `${Math.round(pointVal * 100)}%`
+        const metricVal = inGap ? '0' : (unit === 'GB' ? `${(pointVal * 8).toFixed(2)} GB` : `${Math.round(pointVal * 100)}%`)
         return (
           <>
             <div className="absolute top-0 bottom-0 w-px bg-[#D6D6D6] z-10 pointer-events-none" style={{ left: `${hoverPct * 100}%` }} />
-            <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
+            {!inGap && <div className="absolute w-[7px] h-[7px] bg-[#0A0A0A] z-10 pointer-events-none" style={{
               left: `calc(${hoverPct * 100}% - 3.5px)`,
               top: markerY - 3.5,
-            }} />
+            }} />}
             <div className="absolute z-20 pointer-events-none border border-[#D6D6D6] bg-white px-1.5 py-0.5 flex items-center gap-2" style={{
               left: `calc(${hoverPct * 100}% - 22px)`,
-              top: markerY - 28,
+              top: inGap ? 175 - 28 : markerY - 28,
             }}>
               <span className="font-mono text-xs text-[#0A0A0A]">{formatHoverTime(hoverPct)}</span>
               <span className="font-mono text-xs text-[#707070]">{metricVal}</span>

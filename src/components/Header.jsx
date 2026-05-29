@@ -31,8 +31,8 @@ export default function Header({ paused, killed, onTogglePause, onKill, onRestor
         </button>
         {killed ? (
           <>
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#E56F0029] text-[#E56F00] text-xs uppercase font-normal">
-              <span className="w-[5px] h-[5px] rounded-full bg-[#E56F00]" />
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#FF440029] text-[#FF4400] text-xs uppercase font-normal">
+              <span className="w-[5px] h-[5px] rounded-full bg-[#FF4400]" />
               killed
             </span>
             <span className="inline-flex items-center px-1 py-0.5 bg-[#EBEBEB] text-[#333] text-xs uppercase">Archive</span>
