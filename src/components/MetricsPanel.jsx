@@ -7,7 +7,7 @@ function seededRng(seed) {
 
 // Compute pause gap positions as percentage ranges (matching LifecycleTimeline segments)
 function computePauseGaps() {
-  const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']
+  const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING']
   const totalSlots = types.length
   const gaps = []
   let i = 0
@@ -145,9 +145,6 @@ function MirroredMetricCard({ title, value, seed, paused }) {
       >
         <path d={upperFill} fill="#0000FC33" style={{ transition: 'none' }} />
         <path d={upperLine} fill="none" stroke="#0000FC" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
-        {pauseGaps.map((gap, i) => (
-          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={upperH} fill="white" />
-        ))}
       </svg>
       {/* Lower half — teal, spikes downward */}
       <svg
@@ -158,10 +155,15 @@ function MirroredMetricCard({ title, value, seed, paused }) {
       >
         <path d={lowerFill} fill="#01DFDF33" style={{ transition: 'none' }} />
         <path d={lowerLine} fill="none" stroke="#01B4B4" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
-        {pauseGaps.map((gap, i) => (
-          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={lowerH} fill="white" />
-        ))}
       </svg>
+      {/* Pause gap overlays */}
+      {pauseGaps.map((gap, i) => (
+        <div key={`gap-${i}`} className="absolute top-0 bottom-0 pointer-events-none z-[5]" style={{
+          left: `${gap.leftPct}%`,
+          width: `${gap.widthPct}%`,
+          background: 'white',
+        }} />
+      ))}
       {/* Hover interaction — upper half (Read) */}
       <div
         className="absolute left-0 w-full z-20"
@@ -318,10 +320,15 @@ function MetricCard({ title, value, unit, seed, baseLevel, volatility, spikiness
             <path d={ep.line} fill="none" stroke={ep.strokeColor} strokeWidth="1.5" vectorEffect="non-scaling-stroke" style={{ transition: 'none' }} />
           </g>
         ))}
-        {pauseGaps.map((gap, i) => (
-          <rect key={`gap-${i}`} x={`${gap.leftPct}%`} y="0" width={`${gap.widthPct}%`} height={chartH} fill="white" />
-        ))}
       </svg>
+      {/* Pause gap overlays */}
+      {pauseGaps.map((gap, i) => (
+        <div key={`gap-${i}`} className="absolute top-0 bottom-0 pointer-events-none z-[5]" style={{
+          left: `${gap.leftPct}%`,
+          width: `${gap.widthPct}%`,
+          background: 'white',
+        }} />
+      ))}
       {/* Hover interaction layer */}
       <div
         className="absolute inset-0 z-20"

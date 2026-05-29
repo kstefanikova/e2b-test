@@ -15,7 +15,7 @@ function formatTime(hours, minutes) {
 // Raw small segments, then merge consecutive RUNNING (up to 6)
 function generateSegments(seed) {
   const rng = seededRng(seed)
-  const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING']
+  const types = ['RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'RUNNING', 'PAUSED', 'PAUSED', 'RUNNING']
   const triggers = ['via API', 'via user']
   const rawCount = types.length
   const startMin = 14 * 60 + 10 // 14:10
@@ -109,7 +109,6 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
   const [imgLoaded, setImgLoaded] = useState(false)
   const [tick, setTick] = useState(0)
   const [hoveredSegment, setHoveredSegment] = useState(null)
-  const [hoveredGap, setHoveredGap] = useState(null) // { pct } when over a dynamic pause gap
   const [tooltipPos, setTooltipPos] = useState({ x: 0, segIdx: -1 })
   const [startHovered, setStartHovered] = useState(false)
   const baseDataRef = useRef(null)
@@ -428,40 +427,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
             const rect = containerRef.current.getBoundingClientRect()
             const x = e.clientX - rect.left
             const pct = x / rect.width
-            const meta = canvasMetaRef.current
 
-            // Check if cursor is over a dynamic pause gap
-            if (meta) {
-              const { w, dotSize } = meta
-              const totalShiftCols = shiftRef.current
-              const totalShiftPx = totalShiftCols * dotSize
-              const cursorCol = Math.floor((pct * w) / dotSize)
-
-              // Check active wipe (currently paused)
-              const wipeCursor = pauseFadeRef.current
-              if (wipeCursor > 0) {
-                const wipeRightCol = Math.floor((w - totalShiftPx) / dotSize)
-                const wipeLeftCol = wipeRightCol - wipeCursor
-                if (cursorCol >= wipeLeftCol && cursorCol < wipeRightCol) {
-                  setHoveredSegment(null)
-                  setHoveredGap({ x })
-                  return
-                }
-              }
-
-              // Check past gaps (white gaps from previous pauses)
-              for (const seg of resumeSegmentsRef.current) {
-                const gapLeftCol = Math.floor(seg.startCol)
-                const gapRightCol = gapLeftCol + seg.widthCols
-                if (cursorCol >= gapLeftCol && cursorCol < gapRightCol) {
-                  setHoveredSegment(null)
-                  setHoveredGap({ x })
-                  return
-                }
-              }
-            }
-
-            setHoveredGap(null)
             const slot = pct * totalSlots
             let cumSlots = 0
             for (let i = 0; i < segments.length; i++) {
@@ -473,7 +439,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
               }
             }
           }}
-          onMouseLeave={() => { setHoveredSegment(null); setHoveredGap(null) }}
+          onMouseLeave={() => setHoveredSegment(null)}
           onClick={() => {
             if (hoveredSegment !== null && onSegmentClick) {
               const seg = segments[hoveredSegment]
@@ -519,32 +485,6 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
                 />
               )
             })
-          })()}
-          {/* Gap tooltip (dynamic pause gaps) */}
-          {hoveredGap !== null && hoveredSegment === null && (() => {
-            const containerWidth = containerRef.current?.getBoundingClientRect().width || 1000
-            const tooltipWidth = 200
-            let leftPx = hoveredGap.x - tooltipWidth / 2
-            leftPx = Math.max(0, Math.min(leftPx, containerWidth - tooltipWidth))
-            return (
-              <div
-                className="absolute z-30 bg-white border border-[#D6D6D6] pointer-events-none"
-                style={{
-                  width: tooltipWidth,
-                  top: -60,
-                  left: leftPx,
-                  filter: 'drop-shadow(0px 2px 3px #00000026)',
-                }}
-              >
-                <div className="flex items-center gap-2.5 px-6 py-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" className="shrink-0">
-                    <rect x="6" y="4" width="4" height="16" />
-                    <rect x="14" y="4" width="4" height="16" />
-                  </svg>
-                  <span className="text-sm font-bold text-[#0A0A0A] uppercase">Paused</span>
-                </div>
-              </div>
-            )
           })()}
           {/* Tooltip */}
           {hoveredSegment !== null && (() => {
@@ -607,7 +547,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
                 {/* Footer */}
                 <div className="flex items-center gap-2 px-6 pt-0 pb-3 bg-[#FAFAFA] -mt-1">
                   <div className="opacity-60 relative shrink-0 w-3.5 h-3.5">
-                    <svg viewBox="0 0 8.83 10" width="8.83" height="10" style={{ overflow: 'visible', rotate: '-33.67deg', position: 'absolute', left: '2px', top: '8px', transformOrigin: '0% 0%' }}>
+                    <svg viewBox="0 0 8.83 10" width="8.83" height="10" style={{ overflow: 'visible', rotate: '-33.67deg', position: 'absolute', left: '2px', top: '5px', transformOrigin: '0% 0%' }}>
                       <path d="M0 10C0 10 4.307 0 4.307 0C4.307 0 8.832 10 8.832 10C8.832 10 4.307 7.044 4.307 7.044C4.307 7.044 0 10 0 10Z" fill="none" stroke="#707070" strokeWidth="1.5" strokeLinejoin="bevel" vectorEffect="non-scaling-stroke" />
                     </svg>
                   </div>

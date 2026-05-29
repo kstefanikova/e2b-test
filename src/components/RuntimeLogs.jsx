@@ -224,12 +224,12 @@ export default function RuntimeLogs({ paused: sandboxPaused, killed, logHighligh
   return (
     <div className="outline outline-1 outline-[#D6D6D6] bg-white relative flex flex-col h-full">
       {/* Title */}
-      <div className="px-5 pt-5 pb-3 shrink-0">
+      <div className="px-4 pt-5 pb-3 shrink-0">
         <h2 className="text-lg font-bold uppercase text-[#0A0A0A] m-0">Runtime Logs</h2>
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 pb-3 shrink-0">
+      <div className="flex items-center justify-between px-4 pb-3 shrink-0">
         <div className="flex items-center gap-5">
           <div className="relative flex-1 min-w-0">
             <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#707070]">
