@@ -109,10 +109,12 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
   const [imgLoaded, setImgLoaded] = useState(false)
   const [tick, setTick] = useState(0)
   const [hoveredSegment, setHoveredSegment] = useState(null)
+  const [hoveredGap, setHoveredGap] = useState(null) // { pct } when over a dynamic pause gap
   const [tooltipPos, setTooltipPos] = useState({ x: 0, segIdx: -1 })
   const [startHovered, setStartHovered] = useState(false)
   const baseDataRef = useRef(null)
   const canvasMetaRef = useRef(null)
+  const [canvasWidth, setCanvasWidth] = useState(0)
   const pauseFadeRef = useRef(0) // current wipe cursor in columns
   const shiftRef = useRef(0) // accumulated permanent shift in columns from past pauses
   const wasPausedRef = useRef(false) // track pause→resume transitions
@@ -128,61 +130,109 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
     return () => clearInterval(interval)
   }, [paused])
 
-  // Initialize canvas from image
+  // Track container size for responsive canvas
   useEffect(() => {
-    if (!imgLoaded) return
+    const container = containerRef.current
+    if (!container) return
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const dpr = window.devicePixelRatio || 1
+        setCanvasWidth(Math.round(entry.contentRect.width * dpr))
+      }
+    })
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  // Initialize canvas: sample image at native res, render as perfect-square dots
+  useEffect(() => {
+    if (!imgLoaded || !canvasWidth) return
     const canvas = canvasRef.current
     const img = imgRef.current
     if (!canvas || !img) return
 
-    const ctx = canvas.getContext('2d')
-    const w = img.naturalWidth
-    const h = img.naturalHeight
+    const dpr = window.devicePixelRatio || 1
+    const w = canvasWidth
+    const h = Math.round(42 * dpr)
     canvas.width = w
     canvas.height = h
 
-    ctx.drawImage(img, 0, 0)
-    const rawData = ctx.getImageData(0, 0, w, h)
+    // 1. Sample the source image at its natural size to find dot positions
+    const tmpCanvas = document.createElement('canvas')
+    const imgW = img.naturalWidth
+    const imgH = img.naturalHeight
+    tmpCanvas.width = imgW
+    tmpCanvas.height = imgH
+    const tmpCtx = tmpCanvas.getContext('2d')
+    tmpCtx.drawImage(img, 0, 0)
+    const srcData = tmpCtx.getImageData(0, 0, imgW, imgH)
+    const srcDotSize = 6
 
-    const dotSize = 6
-    const dotGrid = {}
-    const dotCenters = []
-    for (let y = 0; y < h; y += dotSize) {
-      for (let x = 0; x < w; x += dotSize) {
-        const i = (y * w + x) * 4
-        const r = rawData.data[i], g = rawData.data[i + 1], b = rawData.data[i + 2], a = rawData.data[i + 3]
+    // Build a normalized grid of dot colors from the source image
+    const cols = Math.floor(imgW / srcDotSize)
+    const rows = Math.floor(imgH / srcDotSize)
+    const dotMap = [] // [{col, row, r, g, b}]
+    const dotGridSrc = {}
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const sx = col * srcDotSize
+        const sy = row * srcDotSize
+        const i = (sy * imgW + sx) * 4
+        const r = srcData.data[i], g = srcData.data[i + 1], b = srcData.data[i + 2], a = srcData.data[i + 3]
         if (a > 20 && !(r > 240 && g > 240 && b > 240)) {
-          dotGrid[`${x},${y}`] = true
-          dotCenters.push({ x, y })
+          dotGridSrc[`${col},${row}`] = true
+          dotMap.push({ col, row, r, g, b })
         }
       }
     }
 
+    // Thin out dense areas
     const thinRng = seededRng(777)
-    for (const dot of dotCenters) {
+    const removedSet = new Set()
+    for (const dot of dotMap) {
       let neighbors = 0
-      for (let dy = -dotSize; dy <= dotSize; dy += dotSize) {
-        for (let dx = -dotSize; dx <= dotSize; dx += dotSize) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0) continue
-          if (dotGrid[`${dot.x + dx},${dot.y + dy}`]) neighbors++
+          if (dotGridSrc[`${dot.col + dx},${dot.row + dy}`]) neighbors++
         }
       }
       const removeChance = neighbors >= 6 ? 0.35 : neighbors >= 4 ? 0.2 : neighbors >= 2 ? 0.1 : 0
       if (thinRng() < removeChance) {
-        for (let py = dot.y; py < dot.y + dotSize && py < h; py++) {
-          for (let px = dot.x; px < dot.x + dotSize && px < w; px++) {
-            const i = (py * w + px) * 4
-            rawData.data[i] = 255; rawData.data[i + 1] = 255; rawData.data[i + 2] = 255; rawData.data[i + 3] = 255
-          }
+        removedSet.add(`${dot.col},${dot.row}`)
+        dotGridSrc[`${dot.col},${dot.row}`] = false
+      }
+    }
+    const finalDots = dotMap.filter(d => !removedSet.has(`${d.col},${d.row}`))
+
+    // 2. Render perfect-square dots onto output canvas
+    const dotSize = Math.max(2, Math.round(h / rows))
+    const ctx = canvas.getContext('2d')
+    const outData = ctx.createImageData(w, h)
+    // Fill white
+    for (let i = 0; i < outData.data.length; i += 4) {
+      outData.data[i] = 255; outData.data[i + 1] = 255; outData.data[i + 2] = 255; outData.data[i + 3] = 255
+    }
+    // Map grid positions to output canvas
+    const xStep = w / cols
+    const yStep = h / rows
+    const outDotCenters = []
+    for (const dot of finalDots) {
+      const px0 = Math.round(dot.col * xStep)
+      const py0 = Math.round(dot.row * yStep)
+      outDotCenters.push({ x: px0, y: py0 })
+      for (let py = py0; py < py0 + dotSize && py < h; py++) {
+        for (let px = px0; px < px0 + dotSize && px < w; px++) {
+          const i = (py * w + px) * 4
+          outData.data[i] = dot.r; outData.data[i + 1] = dot.g; outData.data[i + 2] = dot.b; outData.data[i + 3] = 255
         }
-        dotGrid[`${dot.x},${dot.y}`] = false
       }
     }
 
-    ctx.putImageData(rawData, 0, 0)
+    ctx.putImageData(outData, 0, 0)
     baseDataRef.current = ctx.getImageData(0, 0, w, h)
-    canvasMetaRef.current = { w, h, dotSize, dotCenters: dotCenters.filter(d => dotGrid[`${d.x},${d.y}`]) }
-  }, [imgLoaded])
+    canvasMetaRef.current = { w, h, dotSize, dotCenters: outDotCenters }
+  }, [imgLoaded, canvasWidth])
 
   // Twinkle + progress + pause fade + shift
   useEffect(() => {
@@ -336,7 +386,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
     }, 400)
 
     return () => clearInterval(interval)
-  }, [imgLoaded, tick, paused, killed])
+  }, [imgLoaded, canvasWidth, tick, paused, killed])
 
   return (
     <div className="px-6 py-6 relative" style={{ height: 190, zIndex: hoveredSegment !== null ? 20 : 'auto' }}>
@@ -378,6 +428,40 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
             const rect = containerRef.current.getBoundingClientRect()
             const x = e.clientX - rect.left
             const pct = x / rect.width
+            const meta = canvasMetaRef.current
+
+            // Check if cursor is over a dynamic pause gap
+            if (meta) {
+              const { w, dotSize } = meta
+              const totalShiftCols = shiftRef.current
+              const totalShiftPx = totalShiftCols * dotSize
+              const cursorCol = Math.floor((pct * w) / dotSize)
+
+              // Check active wipe (currently paused)
+              const wipeCursor = pauseFadeRef.current
+              if (wipeCursor > 0) {
+                const wipeRightCol = Math.floor((w - totalShiftPx) / dotSize)
+                const wipeLeftCol = wipeRightCol - wipeCursor
+                if (cursorCol >= wipeLeftCol && cursorCol < wipeRightCol) {
+                  setHoveredSegment(null)
+                  setHoveredGap({ x })
+                  return
+                }
+              }
+
+              // Check past gaps (white gaps from previous pauses)
+              for (const seg of resumeSegmentsRef.current) {
+                const gapLeftCol = Math.floor(seg.startCol)
+                const gapRightCol = gapLeftCol + seg.widthCols
+                if (cursorCol >= gapLeftCol && cursorCol < gapRightCol) {
+                  setHoveredSegment(null)
+                  setHoveredGap({ x })
+                  return
+                }
+              }
+            }
+
+            setHoveredGap(null)
             const slot = pct * totalSlots
             let cumSlots = 0
             for (let i = 0; i < segments.length; i++) {
@@ -389,7 +473,7 @@ export default function LifecycleTimeline({ paused, killed, onSegmentClick }) {
               }
             }
           }}
-          onMouseLeave={() => setHoveredSegment(null)}
+          onMouseLeave={() => { setHoveredSegment(null); setHoveredGap(null) }}
           onClick={() => {
             if (hoveredSegment !== null && onSegmentClick) {
               const seg = segments[hoveredSegment]
